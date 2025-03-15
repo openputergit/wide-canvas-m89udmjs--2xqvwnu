@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Compare Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/three@0.157.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.157.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #050816;
+            color: #f9fafb;
+            overflow-x: hidden;
+        }
+
+        .canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            border-top: 3px solid #7e22ce;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .gradient-text {
+            background: linear-gradient(to right, #7e22ce, #4f46e5);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .glass-effect {
+            background: rgba(23, 23, 35, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .price-tag {
+            background: linear-gradient(to right, #7e22ce, #4f46e5);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .card-glow:hover {
+            box-shadow: 0 0 20px rgba(126, 34, 206, 0.5);
+        }
+
+        .search-button {
+            background: linear-gradient(to right, #7e22ce, #4f46e5);
+        }
+        
+        .search-button:hover {
+            background: linear-gradient(to right, #6d1cb0, #4338ca);
+        }
+    </style>
+</head>
+<body>
+    <div class="canvas-container" id="canvas-container"></div>
+
+    <div class="min-h-screen relative z-10">
+        <nav class="glass-effect shadow-lg">
+            <div class="max-w-7xl mx-auto px-4">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <i class="bi bi-search-heart text-2xl text-purple-600"></i>
+                        <span class="ml-2 text-xl font-bold gradient-text">Price Compare Pro</span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-7xl mx-auto px-4 py-12">
+            <div class="text-center mb-12">
+                <h1 class="text-4xl font-bold mb-4 gradient-text">Find the Best Deals Across Stores</h1>
+                <p class="text-gray-400 text-lg">Compare real-time prices from multiple retailers instantly</p>
+            </div>
+
+            <div class="max-w-2xl mx-auto">
+                <div class="flex flex-col md:flex-row gap-2 mb-8">
+                    <input type="text" id="searchInput" placeholder="Enter product name..." class="flex-1 p-3 border border-gray-700 rounded-lg bg-gray-900 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none">
+                    <button onclick="searchProducts()" class="search-button text-white px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <span>Search</span>
+                        <div class="loader" id="searchLoader"></div>
+                    </button>
+                </div>
+
+                <div id="resultsContainer" class="space-y-4"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ThreeJS Scene Setup
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x050816, 1);
+        container.appendChild(renderer.domElement);
+
+        // Create stars
+        const starsGeometry = new THREE.BufferGeometry();
+        const starsMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.05,
+            transparent: true
+        });
+
+        const starsVertices = [];
+        for (let i = 0; i < 1500; i++) {
+            const x = (Math.random() - 0.5) * 2000;
+            const y = (Math.random() - 0.5) * 2000;
+            const z = (Math.random() - 0.5) * 2000;
+            starsVertices.push(x, y, z);
+        }
+
+        starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+        const stars = new THREE.Points(starsGeometry, starsMaterial);
+        scene.add(stars);
+
+        // Create floating spheres
+        const sphereGroup = new THREE.Group();
+        scene.add(sphereGroup);
+
+        function createSphere(radius, color, position) {
+            const geometry = new THREE.SphereGeometry(radius, 32, 32);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: color,
+                transparent: true,
+                opacity: 0.7
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.position.set(position.x, position.y, position.z);
+            return sphere;
+        }
+
+        const sphere1 = createSphere(1.5, 0x7e22ce, { x: -5, y: 3, z: -10 });
+        const sphere2 = createSphere(1, 0x4f46e5, { x: 4, y: -2, z: -8 });
+        const sphere3 = createSphere(0.7, 0xec4899, { x: 2, y: 4, z: -12 });
+
+        sphereGroup.add(sphere1, sphere2, sphere3);
+
+        camera.position.z = 5;
+
+        // Controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enableZoom = false;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.5;
+
+        // Animation
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            stars.rotation.y += 0.0002;
+            
+            sphere1.position.y += Math.sin(Date.now() * 0.0005) * 0.002;
+            sphere2.position.y += Math.sin(Date.now() * 0.0003) * 0.001;
+            sphere3.position.y += Math.sin(Date.now() * 0.0007) * 0.003;
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+        // Product price comparison functionality
+        async function searchProducts() {
+            const searchInput = document.getElementById('searchInput');
+            const loader = document.getElementById('searchLoader');
+            const resultsContainer = document.getElementById('resultsContainer');
+
+            if (!searchInput.value.trim()) {
+                alert('Please enter a product name');
+                return;
+            }
+
+            // Show loader
+            loader.style.display = 'block';
+            resultsContainer.innerHTML = '';
+
+            try {
+                // Using RapidAPI's Amazon Price API as an example
+                // In a real application, you would need to sign up for RapidAPI and use your own API key
+                const keyword = encodeURIComponent(searchInput.value.trim());
+                
+                // Since we can't actually call the API in this demo, we'll simulate a response
+                await simulateApiCall(keyword, resultsContainer);
+            } catch (error) {
+                console.error("Error fetching product data:", error);
+                resultsContainer.innerHTML = `
+                    <div class="bg-red-900 bg-opacity-50 p-4 rounded-lg text-white">
+                        <p>Sorry, we encountered an error while searching. Please try again.</p>
+                    </div>
+                `;
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        async function simulateApiCall(keyword, resultsContainer) {
+            // Simulate network delay
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Generate more realistic data based on the search term
+            const searchTerm = decodeURIComponent(keyword).toLowerCase();
+            let results = [];
+            
+            // Simulate different results based on common product categories
+            if (searchTerm.includes('phone') || searchTerm.includes('iphone') || searchTerm.includes('samsung')) {
+                results = [
+                    {
+                        store: 'Amazon',
+                        productName: `${capitalizeFirstLetter(searchTerm)} - 128GB`,
+                        price: '$' + (599 + Math.floor(Math.random() * 100)).toString(),
+                        rating: (3.8 + Math.random() * 1.2).toFixed(1),
+                        link: '#',
+                        inStock: true
+                    },
+                    {
+                        store: 'Best Buy',
+                        productName: `${capitalizeFirstLetter(searchTerm)} - 128GB`,
+                        price: '$' + (619 + Math.floor(Math.random() * 80)).toString(),
+                        rating: (3.8 + Math.random() * 1.2).toFixed(1),
+                        link: '#',
+                        inStock: true
+                    },
+                    {
+                        store: 'Walmart',
+                        productName: `${capitalizeFirstLetter(searchTerm)} - 128GB`,
+                        price: '$' + (579 + Math.floor(Math.random() * 90)).toString(),
+                        rating: (3.8 + Math.random() * 1.2).toFixed(1),
+                        link: '#',
+                        inStock: Math.random() > 0.2
+                    }
+                ];
+            } else if (searchTerm.includes('laptop') || searchTerm.includes('macbook') || searchTerm.includes('dell')) {
+                results = [
+                    {
+                        store: 'Amazon',
+                        productName: `${capitalizeFirstLetter(searchTerm)} - 8GB RAM/256GB SSD`,
+                        price: '$' + (899 + Math.floor(Math.random() * 200)).toString(),
+                        rating: (4.0 + Math.random() * 1.0).toFixed(1),
+                        link: '#',
+                        inStock: true
+                    },
+                    {
+                        store: 'Newegg',
+                        productName: `${capitalizeFirstLetter(searchTerm)} - 8GB RAM/512GB SSD`,
+                        price: '$' + (949 + Math.floor(Math.random() * 150)).toString(),
+                        rating: (4.0 + Math.random() * 0.9).toFixed(1),
+                        link: '#',
+                        inStock: true
+                    },
+                    {
+                        store: 'Best Buy',
+                        productName: `${capitalizeFirstLetter(searchTerm)} - 16GB RAM/512GB SSD`,
+                        price: '$' + (1099 + Math.floor(Math.random() * 200)).toString(),
+                        rating: (4.2 + Math.random() * 0.8).toFixed(1),
+                        link: '#',
+                        inStock: Math.random() > 0.1
+                    }
+                ];
+            } else {
+                // Generic results for other product searches
+                results = [
+                    {
+                        store: 'Amazon',
+                        productName: capitalizeFirstLetter(searchTerm),
+                        price: '$' + (49 + Math.floor(Math.random() * 50)).toString() + '.99',
+                        rating: (3.5 + Math.random() * 1.5).toFixed(1),
+                        link: '#',
+                        inStock: true
+                    },
+                    {
+                        store: 'Walmart',
+                        productName: capitalizeFirstLetter(searchTerm),
+                        price: '$' + (45 + Math.floor(Math.random() * 40)).toString() + '.99',
+                        rating: (3.5 + Math.random() * 1.3).toFixed(1),
+                        link: '#',
+                        inStock: Math.random() > 0.2
+                    },
+                    {
+                        store: 'Target',
+                        productName: capitalizeFirstLetter(searchTerm),
+                        price: '$' + (47 + Math.floor(Math.random() * 45)).toString() + '.99',
+                        rating: (3.7 + Math.random() * 1.2).toFixed(1),
+                        link: '#',
+                        inStock: Math.random() > 0.3
+                    }
+                ];
+            }
+            
+            // Sort by price
+            results.sort((a, b) => {
+                return parseFloat(a.price.substring(1)) - parseFloat(b.price.substring(1));
+            });
+            
+            displayResults(results, searchTerm);
+        }
+
+        function capitalizeFirstLetter(string) {
+            return string.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        }
+
+        function displayResults(results, searchTerm) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            if (results.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="glass-effect p-6 rounded-lg text-center">
+                        <p class="text-gray-300">No results found for "${searchTerm}"</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            resultsContainer.innerHTML = `
+                <div class="mb-4">
+                    <h2 class="text-xl text-white mb-2">Results for "${searchTerm}"</h2>
+                    <p class="text-sm text-gray-400">Found ${results.length} results across different stores</p>
+                </div>
+            `;
+            
+            // Find the lowest price for highlighting
+            const lowestPrice = Math.min(...results.map(item => parseFloat(item.price.substring(1))));
+            
+            results.forEach(result => {
+                const isLowestPrice = parseFloat(result.price.substring(1)) === lowestPrice;
+                const resultCard = document.createElement('div');
+                resultCard.className = 'glass-effect p-5 rounded-lg transition-all duration-300 card-glow mb-4';
+                
+                resultCard.innerHTML = `
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                        <div>
+                            <div class="flex items-center">
+                                <h3 class="text-lg font-semibold text-white">${result.store}</h3>
+                                ${isLowestPrice ? '<span class="ml-2 text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full">Best Deal</span>' : ''}
+                            </div>
+                            <p class="text-gray-400 text-sm mt-1">${result.productName}</p>
+                            <div class="flex items-center mt-2">
+                                <span class="text-yellow-400">★</span>
+                                <span class="ml-1 text-sm text-gray-300">${result.rating}</span>
+                                <span class="ml-3 text-xs ${result.inStock ? 'text-green-400' : 'text-red-400'}">
+                                    ${result.inStock ? 'In Stock' : 'Out of Stock'}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="text-right mt-3 md:mt-0">
+                            <p class="text-2xl font-bold price-tag">${result.price}</p>
+                            <a href="${result.link}" class="inline-block mt-2 text-sm text-purple-400 hover:text-purple-300 transition-colors">
+                                View Deal →
+                            </a>
+                        </div>
+                    </div>
+                `;
+                resultsContainer.appendChild(resultCard);
+            });
+            
+            // Add a compare details section
+            const compareSection = document.createElement('div');
+            compareSection.className = 'glass-effect p-5 rounded-lg mt-6';
+            compareSection.innerHTML = `
+                <h3 class="text-lg font-semibold text-white mb-3">Price Comparison</h3>
+                <div class="relative h-12 bg-gray-800 bg-opacity-50 rounded-lg overflow-hidden">
+                    ${results.map((result, index) => {
+                        const price = parseFloat(result.price.substring(1));
+                        const maxPrice = Math.max(...results.map(item => parseFloat(item.price.substring(1))));
+                        const width = (price / maxPrice * 100);
+                        let color;
+                        if (index === 0) color = 'bg-gradient-to-r from-purple-600 to-indigo-600';
+                        else if (index === 1) color = 'bg-gradient-to-r from-blue-600 to-cyan-600';
+                        else color = 'bg-gradient-to-r from-emerald-600 to-green-600';
+                        
+                        return `
+                            <div class="absolute h-full flex items-center ${color}" 
+                                 style="width: ${width}%; left: 0; z-index: ${10 - index}">
+                                <span class="ml-2 text-xs text-white font-medium">${result.store}: ${result.price}</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                <p class="text-xs text-gray-400 mt-2">Price comparison across retailers (lower is better)</p>
+            `;
+            resultsContainer.appendChild(compareSection);
+        }
+
+        // Enable search on Enter key
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchProducts();
+            }
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
